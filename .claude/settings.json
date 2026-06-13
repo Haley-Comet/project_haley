@@ -1,0 +1,27 @@
+{
+    "permissions": {
+        "deny": [
+            "Read(./.env)",
+            "Read(./.env.*)",
+            "Read(./**/.env)",
+            "Read(./secrets/**)",
+            "Read(./**/*.pem)",
+            "Read(./**/id_rsa*)",
+            "Edit(./.env)",
+            "Edit(./.env.*)",
+            "Bash(rm -rf:*)",
+            "Bash(git push --force:*)",
+            "Bash(git push -f:*)",
+            "Bash(psql:*)",
+            "Bash(supabase db reset:*)",
+            "Bash(docker system prune:*)"
+        ],
+        "ask": [
+            "Bash(git push:*)",
+            "Bash(docker:*)",
+            "Bash(deploy.py:*)",
+            "Bash(python3 /opt/deploy.py:*)"
+        ]
+    },
+    "autoMemoryEnabled": true
+}
