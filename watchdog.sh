@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DISCORD_WEBHOOK="https://discord.com/api/webhooks/1487262567855292619/291f4_dPF3kiWjxwTHfxt03ijceIaLPhxbo-O44QoebpDbv7uPrTDTZmoPOYNc4X2Imn"
+DISCORD_WEBHOOK="https://discord.com/api/webhooks/1531432418236698754/ICS16VzrRXvnjngUZJBMNIi5kjTsDOLS_zcRaNw8kzpkgDIZaZtLdT_HZM4qA8L1vQ2p"
 CONTAINERS=("haley-discord-bot" "traefik-traefik-1" "n8n" "cometmessenger-delivery")
 DOMAIN="n8n.cometmessenger.delivery"
 SSL_WARN_DAYS=14

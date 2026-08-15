@@ -62,9 +62,11 @@ async def run():
         # Open Collections frame
         print("    Opening Collections...")
         await pg.evaluate("() => { openFrame('Collections'); }")
-        await asyncio.sleep(6)
-
-        coll_frame = next((f for f in pg.frames if 'Collections.aspx' in f.url), None)
+        coll_frame = None
+        for _ in range(30):
+            await asyncio.sleep(2)
+            coll_frame = next((f for f in pg.frames if 'Collections.aspx' in f.url), None)
+            if coll_frame: break
         if not coll_frame:
             print("    ERROR: Collections frame not found"); await br.close(); return
 
@@ -77,6 +79,9 @@ async def run():
             }
         }""")
         await coll_frame.click('text=Run Collections')
+        for _ in range(30):
+            await asyncio.sleep(2)
+            if any('CollectionsControls' in f.url for f in pg.frames): break
         await asyncio.sleep(6)
 
         # Find the results frame

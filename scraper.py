@@ -42,7 +42,7 @@ async def run():
             try:
                 b = await r.text()
                 if b.strip()[:1] in '[{':
-                    key = r.url.split('/api/')[1].split('?')[0]
+                    key = r.url.split('/api/')[1].split('?')[0].rstrip('/')
                     captured[key] = json.loads(b)
             except: pass
 
@@ -52,7 +52,7 @@ async def run():
 
         t  = captured.get('dashboard/gettotals', {})
         d  = unwrap(captured.get('dashboardchart/getdispatchstatus', []))
-        dr = unwrap(captured.get('dashboardchart/getdispatchcountperformance', []))
+        dr = unwrap(captured.get('dashboardchart/getdispatchburn', []))
         ov = captured.get('dashboardchart/ordersoverview', {})
 
         sm = {i['Field'].strip(): int(i.get('Count') or 0) for i in d}
