@@ -62,13 +62,65 @@ async def run():
             key=lambda x: -x['orders']
         )[:8]
 
+        # -- Deep fix 2026-08-30: dashboard chart APIs changed shape / no longer
+        # fire on home, so sm/dr gave 0s. Read the board directly from
+        # dispatchmaps/orderpositions (same call order_scraper.py uses).
+        # Fail-open: on any error keep the legacy chart-derived values.
+        ORD_URL = '/api/dispatchmaps/orderpositions?_p_terminals=22,23&_p_dcSegments=0&_p_vehicles=0&_p_services=0&_p_timeSpan=0&_p_markedOrders=0&_p_pickup=1&_p_delivery=1&_p_assignment=0&_p_drivers=&_p_IsTablet=false&_p_SchedStatuses=0&_p_orderTypes=0&_p_accounts=&_p_SourceOfBizCodes=&_p_SpecialAttributeIds=&_p_SpecialAttributeFilterType=ANY'
+        board = None
+        try:
+            _r = await pg.evaluate(
+                "async (u) => { const r = await fetch(u, {method:'POST'});"
+                " return {status:r.status, body: await r.text()}; }",
+                ORD_URL)
+            if _r['status'] == 200:
+                _j = json.loads(_r['body'])
+                _rows = _j.get('Data', _j) if isinstance(_j, dict) else _j
+                if isinstance(_rows, list):
+                    _asn = [x for x in _rows if x.get('DriverNo') or x.get('DriverID')]
+                    board = {'open_orders': len(_rows), 'assigned': len(_asn),
+                             'unassigned': len(_rows) - len(_asn)}
+                    _cnt = {}
+                    for x in _asn:
+                        _n = (x.get('DriverName') or '').strip() or str(x.get('DriverNo'))
+                        _cnt[_n] = _cnt.get(_n, 0) + 1
+                    drivers = sorted([{'driver': k, 'orders': v} for k, v in _cnt.items()],
+                                     key=lambda x: -x['orders'])[:8]
+                    # unassigned_due: unassigned orders whose pickup window is
+                    # imminent (<= now+30min Chicago) or past; future-scheduled
+                    # orders are excluded so the watchdog does not false-alarm.
+                    # Unparseable pickup time on an unassigned order counts as
+                    # due (fail-closed).
+                    from datetime import timedelta
+                    try:
+                        from zoneinfo import ZoneInfo
+                        _tz = ZoneInfo('America/Chicago')
+                        _nowc = datetime.now(_tz)
+                        _due = 0
+                        for x in _rows:
+                            if x.get('DriverNo') or x.get('DriverID'):
+                                continue
+                            try:
+                                _t = datetime.strptime((x.get('PickupTargetFrom') or '').strip(), '%m/%d/%Y %H:%M').replace(tzinfo=_tz)
+                                if _t <= _nowc + timedelta(minutes=30):
+                                    _due += 1
+                            except Exception:
+                                _due += 1
+                        board['unassigned_due'] = _due
+                    except Exception:
+                        board['unassigned_due'] = board['unassigned']
+        except Exception as _e:
+            print(f"    board fetch failed: {_e}")
+            board = None
+
         data = {
             'scraped_at':      now.isoformat(),
-            'open_orders':     t.get('TodayOpenOrders', 0),
+            'open_orders':     (board['open_orders'] if board is not None else t.get('TodayOpenOrders', 0)),
             'completed_today': t.get('OrdersCompletedToday', 0),
             'on_time_pct':     t.get('OnTime', 0),
-            'unassigned':      sm.get('Unassigned', 0),
-            'assigned':        sm.get('Assigned', 0),
+            'unassigned':      (board['unassigned'] if board is not None else sm.get('Unassigned', 0)),
+        'unassigned_due': (board or {}).get('unassigned_due', 0),
+            'assigned':        (board['assigned'] if board is not None else sm.get('Assigned', 0)),
             'avg_per_hour':    ov.get('AverageRunsPerHour', 0) if isinstance(ov, dict) else 0,
             'drivers':         drivers,
         }

@@ -133,6 +133,9 @@ async def run():
     days_since_sunday = (now.weekday() + 1) % 7
     billing_start = now - timedelta(days=days_since_sunday)
     billing_start_str = billing_start.strftime('%m/%d/%Y')
+    # 2026-08-30 deep fix: deleted-sweep looks back 30 days (was: current billing week)
+    # so orders deleted on the board AFTER their week rolls over still get deleted_at set.
+    sweep_start_str = (now - timedelta(days=30)).strftime('%m/%d/%Y')
 
     print(f"[{now.strftime('%H:%M:%S')}] Comet Order Scraper...")
     print(f"    Date range: {billing_start_str} → {today}")
@@ -269,7 +272,7 @@ async def run():
                     "ClientRefNo": "", "ClientRefNo2": "", "RouteNo": "", "CSR": "",
                     "DateField": "CreationUtc",
                     "CreationUtcFrom": "null", "CreationUtcTo": "null",
-                    "PickupTargetToDateStart": billing_start_str, "PickupTargetToDateEnd": "null",
+                    "PickupTargetToDateStart": sweep_start_str, "PickupTargetToDateEnd": "null",
                     "DeliveryTargetToDateStart": "null", "DeliveryTargetToDateEnd": "null",
                     "PODcompletionDateStart": "null", "PODcompletionDateEnd": "null",
                     "WildCardField1": "-1", "WildCardComparer1": "", "WildCardValue1": "",
@@ -305,7 +308,7 @@ async def run():
             if deleted_orders is not None:
                 deleted_ids = sorted({o.get('OrderTrackingID') for o in deleted_orders if o.get('OrderTrackingID')})
                 active_ids  = sorted({o.get('OrderTrackingID') for o in all_orders   if o.get('OrderTrackingID')})
-                print(f"    Deleted sweep: {len(deleted_ids)} deleted on board (window from {billing_start_str})")
+                print(f"    Deleted sweep: {len(deleted_ids)} deleted on board (window from {sweep_start_str})")
                 r = requests.post(f'{SUPA}/rest/v1/rpc/apply_deleted_orders', headers=HDRS,
                                   json={'p_deleted_ids': deleted_ids, 'p_active_ids': active_ids})
                 print(f"    Deleted sweep RPC: {r.status_code} {r.text[:200]}")
