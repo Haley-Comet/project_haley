@@ -149,7 +149,19 @@ async def run():
         await login(pg)
 
         print("    Opening Review Orders frame...")
-        await pg.evaluate("() => { openFrame('ReviewOrd'); }")
+        # 2026-09-17 fix: openFrame() is defined by a page script that is often not loaded yet right after
+        # login; the bare evaluate() crashed ~15% of runs (ReferenceError). Wait for it, then retry.
+        try:
+            await pg.wait_for_function("() => typeof openFrame === 'function'", timeout=60000)
+        except Exception as _e:
+            print(f"    openFrame not defined after 60s (url={pg.url}): {str(_e)[:120]}")
+        for _try in range(5):
+            try:
+                await pg.evaluate("() => { openFrame('ReviewOrd'); }")
+                break
+            except Exception as _e:
+                print(f"    openFrame initial call err (try {_try+1}/5): {str(_e)[:120]}")
+                await asyncio.sleep(5)
         await asyncio.sleep(10)
 
         sub = next((f for f in pg.frames if 'reviewOrdersSubFrame' in f.url), None)
