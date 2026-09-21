@@ -96,17 +96,26 @@ async def run():
                         from zoneinfo import ZoneInfo
                         _tz = ZoneInfo('America/Chicago')
                         _nowc = datetime.now(_tz)
+                        def _parse_pt(v):
+                            v=(v or '').strip()
+                            if not v: raise ValueError('blank')
+                            for f in ('%m/%d/%Y %H:%M','%m/%d/%Y %H:%M:%S','%m/%d/%Y %I:%M %p','%m/%d/%Y %I:%M:%S %p','%Y-%m-%dT%H:%M:%S','%Y-%m-%d %H:%M:%S'):
+                                try: return datetime.strptime(v, f).replace(tzinfo=_tz)
+                                except Exception: pass
+                            return datetime.fromisoformat(v[:19]).replace(tzinfo=_tz)
                         _due = 0
+                        _due_ids = []
                         for x in _rows:
                             if x.get('DriverNo') or x.get('DriverID'):
                                 continue
                             try:
-                                _t = datetime.strptime((x.get('PickupTargetFrom') or '').strip(), '%m/%d/%Y %H:%M').replace(tzinfo=_tz)
+                                _t = _parse_pt(x.get('PickupTargetFrom'))
                                 if _t <= _nowc + timedelta(minutes=30):
-                                    _due += 1
+                                    _due += 1; _due_ids.append(str(x.get('OrderTrackingID') or '?')+'@'+str((x.get('PickupTargetFrom') or '')).strip()[:16])
                             except Exception:
-                                _due += 1
+                                _due += 1; _due_ids.append(str(x.get('OrderTrackingID') or '?')+'@'+str((x.get('PickupTargetFrom') or '')).strip()[:16])
                         board['unassigned_due'] = _due
+                        board['unassigned_due_ids'] = _due_ids[:10]
                     except Exception:
                         board['unassigned_due'] = board['unassigned']
         except Exception as _e:
@@ -120,6 +129,7 @@ async def run():
             'on_time_pct':     t.get('OnTime', 0),
             'unassigned':      (board['unassigned'] if board is not None else sm.get('Unassigned', 0)),
         'unassigned_due': (board or {}).get('unassigned_due', 0),
+        'unassigned_due_ids': (board or {}).get('unassigned_due_ids', []),
             'assigned':        (board['assigned'] if board is not None else sm.get('Assigned', 0)),
             'avg_per_hour':    ov.get('AverageRunsPerHour', 0) if isinstance(ov, dict) else 0,
             'drivers':         drivers,
