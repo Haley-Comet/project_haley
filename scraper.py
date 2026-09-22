@@ -1,3 +1,4 @@
+import re
 import asyncio, os, json, requests
 from datetime import datetime
 from pathlib import Path
@@ -103,6 +104,13 @@ async def run():
                                 try: return datetime.strptime(v, f).replace(tzinfo=_tz)
                                 except Exception: pass
                             return datetime.fromisoformat(v[:19]).replace(tzinfo=_tz)
+                        def _oid(x):
+                            for k in ('OrderTrackingID','OrderTrackingId','ordertrackingid','TrackingID','TrackingId','TrackingNo','OrderID','OrderId','OrderNo','OrderNumber','Order'):
+                                v = x.get(k)
+                                if v not in (None, '', 0, '0'): return str(v).strip()
+                            for k, v in x.items():
+                                if re.search(r'(track|order).*(id|no|number)', str(k), re.I) and v not in (None, '', 0, '0'): return str(v).strip()
+                            return '?'
                         _due = 0
                         _due_ids = []
                         for x in _rows:
@@ -111,9 +119,9 @@ async def run():
                             try:
                                 _t = _parse_pt(x.get('PickupTargetFrom'))
                                 if _t <= _nowc + timedelta(minutes=30):
-                                    _due += 1; _due_ids.append(str(x.get('OrderTrackingID') or '?')+'@'+str((x.get('PickupTargetFrom') or '')).strip()[:16])
+                                    _due += 1; _due_ids.append(_oid(x)+'@'+str((x.get('PickupTargetFrom') or '')).strip()[:16])
                             except Exception:
-                                _due += 1; _due_ids.append(str(x.get('OrderTrackingID') or '?')+'@'+str((x.get('PickupTargetFrom') or '')).strip()[:16])
+                                _due += 1; _due_ids.append(_oid(x)+'@'+str((x.get('PickupTargetFrom') or '')).strip()[:16])
                         board['unassigned_due'] = _due
                         board['unassigned_due_ids'] = _due_ids[:10]
                     except Exception:
