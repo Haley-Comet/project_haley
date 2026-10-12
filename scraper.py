@@ -23,7 +23,10 @@ async def login(pg):
     await pg.type('input[name="UserName"]', USER, delay=50)
     await pg.type('input[name="Password"]', PASS, delay=50)
     await pg.click('button[type="submit"]')
-    await pg.wait_for_load_state('load')
+    try:
+        await pg.wait_for_load_state('load', timeout=30000)
+    except Exception:
+        await pg.wait_for_timeout(5000)
     await asyncio.sleep(6)
 
 async def run():
