@@ -63,11 +63,40 @@ async def login(pg):
         await asyncio.sleep(20)
     raise RuntimeError('login form not found: ' + ' | '.join(seen)[:400])
 
+async def dismiss_popups(pg):
+    try:
+        await pg.keyboard.press('Escape')
+    except Exception:
+        pass
+    js = """() => { if (!/We've Updated|New Features/i.test(document.body ? document.body.innerText : '')) return 0;
+      let n = 0;
+      for (const el of document.querySelectorAll('button,a,span,div,i')) {
+        const t = (el.textContent || '').trim(); const c = (el.className || '').toString();
+        if ((t === '\u00d7' || t === '\u2715' || /close/i.test(c)) && el.offsetParent !== null && el.children.length === 0) { el.click(); n++; }
+      }
+      return n; }"""
+    for fr in pg.frames:
+        try:
+            n = await fr.evaluate(js)
+            if n: print(f"    dismissed {n} popup close button(s)")
+        except Exception:
+            pass
+    await pg.wait_for_timeout(1000)
+
 async def client_list(pg):
+    await dismiss_popups(pg)
     await pg.evaluate("() => { openFrame('ClientMaster'); }")
-    await asyncio.sleep(6)
-    panel = next((f for f in pg.frames if 'Panel.aspx' in f.url and 'Client' in f.url and 'Top' not in f.url), None)
-    if not panel: raise RuntimeError('ClientMaster panel not found')
+    panel = None
+    for _ in range(15):
+        await asyncio.sleep(2)
+        panel = next((f for f in pg.frames if 'Client' in f.url and 'Top' not in f.url and ('Panel.aspx' in f.url or 'ClientMaster' in f.url)), None)
+        if panel:
+            try:
+                await panel.wait_for_selector('#TerminalID', state='attached', timeout=5000); break
+            except Exception:
+                panel = None
+        await dismiss_popups(pg)
+    if not panel: raise RuntimeError('ClientMaster panel not found; frames: ' + ' | '.join(f.url[-90:] for f in pg.frames))
     await panel.evaluate("""() => {
         document.getElementById('TerminalID').value = '22';
         document.getElementById('Status').value = 'A';
