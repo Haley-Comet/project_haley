@@ -85,6 +85,17 @@ async def dismiss_popups(pg):
 
 async def client_list(pg):
     await dismiss_popups(pg)
+    for _try in range(3):
+        try:
+            await pg.wait_for_function("() => typeof openFrame === 'function'", timeout=20000)
+            break
+        except Exception:
+            print("    main menu not ready yet, page:", pg.url[-90:])
+            await dismiss_popups(pg)
+            if _try == 1:
+                await login(pg)
+    else:
+        raise RuntimeError('Xcelerator main menu never loaded; page: ' + pg.url[-90:])
     await pg.evaluate("() => { openFrame('ClientMaster'); }")
     panel = None
     for _ in range(15):
