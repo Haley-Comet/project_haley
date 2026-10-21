@@ -193,8 +193,20 @@ async def run():
         pg = await br.new_page(viewport={'width':1440,'height':900}); pg.set_default_timeout(30000)
         await login(pg)
 
-        await pg.evaluate("() => { openFrame('Collections'); }"); await asyncio.sleep(6)
-        coll = next((f for f in pg.frames if 'Collections.aspx' in f.url), None)
+        coll = None
+        for _try in range(3):
+            try: await pg.wait_for_function("typeof openFrame==='function'", timeout=20000)
+            except Exception: pass
+            try: await pg.keyboard.press('Escape')
+            except Exception: pass
+            try: await pg.evaluate("() => { openFrame('Collections'); }")
+            except Exception as e: print(f"    openFrame failed (try {_try+1}): {e}")
+            for _ in range(15):
+                await asyncio.sleep(2)
+                coll = next((f for f in pg.frames if 'Collections.aspx' in f.url), None)
+                if coll: break
+            if coll: break
+            print(f"    Collections frame not ready (try {_try+1}); frames: {[f.url[-50:] for f in pg.frames]}")
         if not coll:
             print("ERROR: Collections frame not found"); await br.close(); return
         await coll.evaluate("""() => { const sel=document.querySelector('select[name="Terminals"]');
