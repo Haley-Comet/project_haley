@@ -151,10 +151,26 @@ async def run():
         print("    Opening Review Orders frame...")
         # 2026-09-17 fix: openFrame() is defined by a page script that is often not loaded yet right after
         # login; the bare evaluate() crashed ~15% of runs (ReferenceError). Wait for it, then retry.
-        try:
-            await pg.wait_for_function("() => typeof openFrame === 'function'", timeout=60000)
-        except Exception as _e:
-            print(f"    openFrame not defined after 60s (url={pg.url}): {str(_e)[:120]}")
+        # 2026-10-25: when openFrame never appears, the login landed off the main page (update pop-up /
+        # expired session). Clear it and log in again, up to twice, like account_sync (2026-10-15).
+        for _w in range(3):
+            try:
+                await pg.wait_for_function("() => typeof openFrame === 'function'", timeout=(60000 if _w == 0 else 30000))
+                break
+            except Exception as _e:
+                print(f"    openFrame not defined after wait {_w+1}/3 (url={pg.url}): {str(_e)[:120]}")
+                if _w == 2: break
+                try: await pg.keyboard.press('Escape')
+                except Exception: pass
+                try:
+                    for _sel in ["button:has-text('Close')", "text=×", "[class*=close]"]:
+                        _el = await pg.query_selector(_sel)
+                        if _el: await _el.click(timeout=2000); break
+                except Exception: pass
+                try:
+                    print("    re-logging in...")
+                    await login(pg)
+                except Exception as _e2: print(f"    re-login failed: {str(_e2)[:120]}")
         for _try in range(5):
             try:
                 await pg.evaluate("() => { openFrame('ReviewOrd'); }")
